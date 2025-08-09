@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>II Semana Acadêmica de Ciências Contábeis - Registro de Presença</title>
+<style>
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    margin: 0;
+    background: #ffe6f0; /* rosa claro */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  .card {
+    background: #fffaf5; /* bege claro */
+    border-radius: 12px;
+    padding: 22px;
+    max-width: 520px;
+    width: 100%;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+    border: 2px solid rgba(184,134,11,0.15); /* dourado suave */
+  }
+  h1 {
+    margin: 0 0 8px;
+    font-size: 20px;
+    color: #b8860b; /* dourado */
+    text-align: center;
+  }
+  p.lead {
+    margin: 0 0 16px;
+    text-align: center;
+    color: #555;
+    font-size: 13px;
+  }
+  form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  label {
+    display: block;
+    color: #b8860b;
+    font-weight: 600;
+    font-size: 13px;
+  }
+  input, select, button {
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    font-size: 14px;
+    width: 100%;
+    background: #fff;
+    color: #333;
+  }
+  .full { grid-column: 1/3; }
+  .actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+    grid-column: 1/3;
+  }
+  button {
+    background: #b8860b;
+    color: #fff;
+    border: 0;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 12px;
+    border-radius: 8px;
+    transition: background 0.2s;
+  }
+  button:hover:not([disabled]) { background: #a37509; }
+  button[disabled] {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+  .msg {
+    grid-column: 1/3;
+    padding: 10px;
+    border-radius: 8px;
+    display: none;
+    font-size: 13px;
+  }
+  .msg.err { background: #ffe6ea; color: #a00; display: block; }
+  .msg.ok { background: #e6ffea; color: #060; display: block; }
+  @media(max-width:520px){
+    form { grid-template-columns: 1fr; }
+    .full { grid-column: 1/2; }
+  }
+</style>
+</head>
+<body>
+<div class="card" role="main">
+  <h1>II Semana Acadêmica de Ciências Contábeis</h1>
+  <p class="lead">Validação automática: GPS até 500m | Horário: 18:00–23:59</p>
+
+  <form id="form" autocomplete="off" novalidate>
+    <div class="full">
+      <label for="nome">Nome</label>
+      <input id="nome" name="nome" type="text" required>
+    </div>
+
+    <div>
+      <label for="email">E-mail</label>
+      <input id="email" name="email" type="email" required>
+    </div>
+
+    <div>
+      <label for="tipo">Tipo</label>
+      <select id="tipo" name="tipo" required>
+        <option value="">Selecione</option>
+        <option>Aluno</option>
+        <option>Professor</option>
+        <option>Comunidade Externa</option>
+      </select>
+    </div>
+
+    <div id="alunoFields" class="full" style="display:none">
+      <label for="matricula">Matrícula / ID</label>
+      <input id="matricula" name="matricula" type="text" placeholder="Ex: 20230070020">
+      <label for="periodo" style="margin-top:8px">Período / Turma</label>
+      <input id="periodo" name="periodo" type="text" placeholder="Ex: 5">
+    </div>
+
+    <div class="full actions">
+      <div style="font-size:13px;color:#666">Local: blocão UFAC</div>
+      <button id="submitBtn" type="submit" disabled>Registrar Presença</button>
+    </div>
+
+    <div id="msg" class="msg"></div>
+  </form>
+</div>
+
+<script>
+(() => {
+  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzaJOUpIUM5yazRaZhyIXY3DdcpQRvvkzinJlZJCMtEhJ1v4mdiFayjiIpRG1EtXGUM/exec";
+  const BLOC_LAT = -9.927514;
+  const BLOC_LON = -67.841154;
+  const MAX_METERS = 500;
+  const FORM = document.getElementById('form');
+  const SUBMIT = document.getElementById('submitBtn');
+  const MSG = document.getElementById('msg');
+  const TIPO = document.getElementById('tipo');
+  const ALUNO = document.getElementById('alunoFields');
+  const MAT = document.getElementById('matricula');
+  const PERIOD = document.getElementById('periodo');
+
+  function show(text, type){
+    MSG.textContent = text || '';
+    MSG.className = 'msg ' + (type === 'err' ? 'err' : type === 'ok' ? 'ok' : '');
+    MSG.style.display = text ? 'block' : 'none';
+  }
+
+  TIPO.addEventListener('change', () => {
+    ALUNO.style.display = TIPO.value === 'Aluno' ? 'block' : 'none';
+  });
+
+  function haversine(lat1, lon1, lat2, lon2){
+    const R = 6371000;
+    const toRad = v => v * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
+  function horarioValido(){
+    const now = new Date();
+    const h = now.getHours();
+    const m = now.getMinutes();
+    return (h > 18 || (h === 18 && m >= 0)) && h <= 23;
+  }
+
+  function initGeoloc(){
+    if(!navigator.geolocation){
+      show('Geolocalização não suportada.', 'err');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(pos => {
+      const d = haversine(pos.coords.latitude, pos.coords.longitude, BLOC_LAT, BLOC_LON);
+      if (d > MAX_METERS){
+        show('Você está fora do raio permitido (500 m).', 'err');
+        SUBMIT.disabled = true;
+        return;
+      }
+      if (!horarioValido()){
+        show('Fora do horário permitido (18:00–23:59).', 'err');
+        SUBMIT.disabled = true;
+        return;
+      }
+      show('Local e horário validados — pode enviar.', 'ok');
+      SUBMIT.disabled = false;
+    }, () => {
+      show('Permita acesso à localização.', 'err');
+    }, { enableHighAccuracy:true, timeout:10000 });
+  }
+
+  initGeoloc();
+
+  FORM.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (SUBMIT.disabled){
+      show('Não é possível enviar: verifique local/horário.', 'err');
+      return;
+    }
+    if (!horarioValido()){
+      show('Fora do horário permitido (18:00–23:59).', 'err');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const dispositivoID = localStorage.getItem('dispositivoID') || (() => {
+        const id = 'id-' + Math.random().toString(36).slice(2,9);
+        localStorage.setItem('dispositivoID', id);
+        return id;
+      })();
+
+      const payload = {
+        nome: document.getElementById('nome').value.trim(),
+        email: document.getElementById('email').value.trim(),
+        tipo: TIPO.value,
+        matricula: MAT.value.trim(),
+        periodo: PERIOD.value.trim(),
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+        dispositivoID: dispositivoID
+      };
+
+      if (!payload.nome || !payload.email || !payload.tipo){
+        show('Preencha Nome, E-mail e Tipo.', 'err');
+        return;
+      }
+      if (payload.tipo === 'Aluno' && !payload.matricula){
+        show('Preencha matrícula se for aluno.', 'err');
+        return;
+      }
+
+      try {
+        const resp = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        if (data.success){
+          show(data.message || 'Presença registrada com sucesso!', 'ok');
+          FORM.reset();
+          SUBMIT.disabled = true;
+        } else {
+          show(data.message || 'Erro ao registrar presença.', 'err');
+        }
+      } catch(err) {
+        show('Erro de comunicação: ' + err.message, 'err');
+      }
+    }, () => {
+      show('Não foi possível obter localização.', 'err');
+    }, { enableHighAccuracy:true, timeout:10000 });
+  });
+})();
+</script>
+</body>
+</html>
